@@ -12,8 +12,8 @@
     "rootDir": "src",
     "baseUrl": ".",
     "paths": {
-      "#src/*": ["./src/*.ts"],
-      "#test/*": ["./test/*.ts"]
+      "#src/*": ["./src/*"],
+      "#test/*": ["./test/*"]
     },
     "skipLibCheck": true
   },

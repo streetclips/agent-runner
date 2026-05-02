@@ -3,24 +3,24 @@
   "version": "0.1.0",
   "description": "Run coding agents inside sandboxed worktrees.",
   "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "main": "./dist/run.js",
+  "types": "./dist/run.d.ts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js"
+      "types": "./dist/run.d.ts",
+      "import": "./dist/run.js"
     },
     "./types": {
       "types": "./dist/types.d.ts",
       "import": "./dist/types.js"
     },
     "./agents": {
-      "types": "./dist/agents/index.d.ts",
-      "import": "./dist/agents/index.js"
+      "types": "./dist/agents/claude.d.ts",
+      "import": "./dist/agents/claude.js"
     },
     "./sandboxes": {
-      "types": "./dist/sandboxes/index.d.ts",
-      "import": "./dist/sandboxes/index.js"
+      "types": "./dist/sandboxes/docker.d.ts",
+      "import": "./dist/sandboxes/docker.js"
     }
   },
   "imports": {

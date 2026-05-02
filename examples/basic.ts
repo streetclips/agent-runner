@@ -1,8 +1,8 @@
 import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
-import { claudeCode } from "../src/agents/index.js"
-import { run } from "../src/index.js"
-import { docker } from "../src/sandboxes/index.js"
+import { claudeCode } from "#src/agents/claude.js"
+import { run } from "#src/run.js"
+import { docker } from "#src/sandboxes/docker.js"
 
 const repoDir = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const claudeToken = process.env.CLAUDE_CODE_OAUTH_TOKEN

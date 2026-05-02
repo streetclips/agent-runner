@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto"
 import path from "node:path"
-import { type ExecResult, exec } from "../exec.js"
+import { type ExecResult, exec } from "#src/exec.js"
 
 export interface Sandbox {
   name: string

@@ -2,16 +2,16 @@ export type {
   Agent,
   AgentCommand,
   ParsedStreamEvent,
-} from "./agent.js"
+} from "#src/agent.js"
 
 export type {
   IterationResult,
   LoggingOption,
   RunOptions,
   RunResult,
-} from "./run.js"
+} from "#src/run.js"
 
 export type {
   Sandbox,
   SandboxHandle,
-} from "./sandboxes/docker.js"
+} from "#src/sandboxes/docker.js"

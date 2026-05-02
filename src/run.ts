@@ -1,9 +1,9 @@
 import { type WriteStream, createWriteStream } from "node:fs"
 import { mkdir } from "node:fs/promises"
 import path from "node:path"
-import type { Agent, ParsedStreamEvent } from "./agent.js"
-import { commitAll, createWorktree } from "./git.js"
-import type { Sandbox } from "./sandboxes/docker.js"
+import type { Agent, ParsedStreamEvent } from "#src/agent.js"
+import { commitAll, createWorktree } from "#src/git.js"
+import type { Sandbox } from "#src/sandboxes/docker.js"
 
 export const DEFAULT_COMPLETION_SIGNAL = "<promise>COMPLETE</promise>"
 
