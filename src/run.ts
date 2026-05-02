@@ -22,7 +22,7 @@ function defaultLogPath(input: {
 }): string {
   return path.join(
     input.repoDir,
-    ".mini-agent",
+    ".agent-runner",
     "logs",
     `${sanitizeBranchForFilename(input.branch)}-${input.agentName}.log`,
   )

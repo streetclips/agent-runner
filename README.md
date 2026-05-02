@@ -21,7 +21,7 @@ const result = await run({
   prompt: "Update the README and finish with <promise>COMPLETE</promise>",
   branch: "agent/demo",
   maxIterations: 3,
-  // Default: writes agent stdout/stderr to .mini-agent/logs/<branch>-<agent>.log
+  // Default: writes agent stdout/stderr to .agent-runner/logs/<branch>-<agent>.log
   // and tees the in-container output to your terminal.
   // Use logging: { type: "file", tee: false } for quiet file-only logging.
   // Use logging: { type: "stdout" } for terminal-only logging.

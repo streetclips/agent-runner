@@ -10,7 +10,7 @@ export async function createWorktree(input: {
 
   const worktreePath = path.join(
     input.repoDir,
-    ".mini-agent",
+    ".agent-runner",
     "worktrees",
     safeBranch.replaceAll("/", "-"),
   )

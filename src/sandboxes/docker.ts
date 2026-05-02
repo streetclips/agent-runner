@@ -27,7 +27,7 @@ export function docker(options: {
 
       const context = options.context ?? "."
       const workdir = options.workdir ?? "/workspace"
-      const containerName = `mini-agent-${randomUUID()}`
+      const containerName = `agent-runner-${randomUUID()}`
 
       const build = await exec(
         "docker",
