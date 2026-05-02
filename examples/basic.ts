@@ -1,8 +1,8 @@
 import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
-import { claudeCode } from "#src/agents/claude.js"
-import { run } from "#src/run.js"
-import { docker } from "#src/sandboxes/docker.js"
+import { claudeCode } from "../src/agents/claude.ts"
+import { DEFAULT_COMPLETION_SIGNAL, run } from "../src/run.ts"
+import { dockerSandboxWithClaudeClode } from "../src/sandboxes/docker.ts"
 
 const repoDir = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const claudeToken = process.env.CLAUDE_CODE_OAUTH_TOKEN
@@ -15,22 +15,18 @@ const result = await run({
   agent: claudeCode("claude-sonnet-4-6", {
     effort: "low",
   }),
-
-  sandbox: docker({
-    imageName: "mini-agent-runner:local",
-    dockerfile: "Dockerfile",
+  sandbox: dockerSandboxWithClaudeClode({
     env: {
       CLAUDE_CODE_OAUTH_TOKEN: claudeToken,
     },
   }),
-
   logging: {
     type: "stdout",
   },
-
   branch: "agent/demo",
   cwd: repoDir,
-  prompt: "Actualiza el README y termina con <promise>COMPLETE</promise>",
+  completionSignal: DEFAULT_COMPLETION_SIGNAL,
+  prompt: `Actualiza el README y termina con ${DEFAULT_COMPLETION_SIGNAL}`,
   maxIterations: 3,
   idleTimeoutSeconds: 60 * 10,
 })

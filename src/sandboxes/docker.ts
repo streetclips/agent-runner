@@ -1,9 +1,13 @@
 import { randomUUID } from "node:crypto"
 import path from "node:path"
+import { fileURLToPath } from "node:url"
 import { exec } from "#src/exec.js"
 import type { Sandbox } from "#src/types.js"
 
-export type { Sandbox, SandboxHandle } from "#src/types.js"
+const CLAUDE_CODE_DOCKERFILE = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../../dockerfiles/Dockerfile.claude-code",
+)
 
 export function docker(options: {
   imageName: string
@@ -16,7 +20,11 @@ export function docker(options: {
     name: "docker",
 
     async start({ repoDir, worktreeDir }) {
-      const dockerfile = options.dockerfile ?? "Dockerfile"
+      const dockerfile = options.dockerfile
+      if (dockerfile !== undefined && !path.isAbsolute(dockerfile)) {
+        throw new Error(`dockerfile must be an absolute path: ${dockerfile}`)
+      }
+
       const context = options.context ?? "."
       const workdir = options.workdir ?? "/workspace"
       const containerName = `mini-agent-${randomUUID()}`
@@ -28,7 +36,7 @@ export function docker(options: {
           "-t",
           options.imageName,
           "-f",
-          path.resolve(repoDir, dockerfile),
+          dockerfile ?? CLAUDE_CODE_DOCKERFILE,
           path.resolve(repoDir, context),
         ],
         {
@@ -89,4 +97,19 @@ export function docker(options: {
       }
     },
   }
+}
+
+export function dockerSandboxWithClaudeClode(options?: {
+  imageName?: string
+  context?: string
+  workdir?: string
+  env?: Record<string, string>
+}): Sandbox {
+  return docker({
+    imageName: options?.imageName ?? "agent-runner-claude-code:local",
+    dockerfile: CLAUDE_CODE_DOCKERFILE,
+    context: options?.context,
+    workdir: options?.workdir,
+    env: options?.env,
+  })
 }

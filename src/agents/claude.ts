@@ -1,5 +1,5 @@
-import { quoteShell } from "#src/agent.js"
 import type { Agent, ParsedStreamEvent } from "#src/types.js"
+import { quoteShell } from "#src/utils.js"
 
 const TOOL_ARG_FIELDS: Record<string, string> = {
   Edit: "file_path",

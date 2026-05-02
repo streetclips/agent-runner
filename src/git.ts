@@ -2,16 +2,6 @@ import { mkdir, rm } from "node:fs/promises"
 import path from "node:path"
 import { exec } from "#src/exec.js"
 
-export async function currentBranch(cwd: string): Promise<string> {
-  const result = await exec("git", ["branch", "--show-current"], { cwd })
-
-  if (result.exitCode !== 0) {
-    throw new Error(result.stderr)
-  }
-
-  return result.stdout.trim()
-}
-
 export async function createWorktree(input: {
   repoDir: string
   branch: string

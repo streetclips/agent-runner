@@ -7,16 +7,13 @@ A minimal TypeScript runner that executes coding agents inside a Docker sandbox,
 ```ts
 import { claudeCode } from "@alejandrocantero/agent-runner/agents"
 import { run } from "@alejandrocantero/agent-runner"
-import { docker } from "@alejandrocantero/agent-runner/sandboxes"
+import { dockerSandboxWithClaudeClode } from "@alejandrocantero/agent-runner/sandboxes"
 import type { Agent, Sandbox } from "@alejandrocantero/agent-runner/types"
 
 const agent: Agent = claudeCode("claude-sonnet-4-6", {
   effort: "low",
 })
-const sandbox: Sandbox = docker({
-  imageName: "mini-agent-runner:local",
-  dockerfile: "Dockerfile",
-})
+const sandbox: Sandbox = dockerSandboxWithClaudeClode()
 
 const result = await run({
   agent,

@@ -30,7 +30,8 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "dockerfiles"
   ],
   "scripts": {
     "dev": "tsx examples/basic.ts",

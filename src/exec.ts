@@ -1,8 +1,6 @@
 import { spawn } from "node:child_process"
 import type { ExecResult } from "#src/types.js"
 
-export type { ExecResult } from "#src/types.js"
-
 export function exec(
   command: string,
   args: string[],
