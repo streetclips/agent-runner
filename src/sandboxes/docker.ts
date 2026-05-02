@@ -11,7 +11,6 @@ export interface Sandbox {
 export interface SandboxHandle {
   exec(input: {
     command: string;
-    stdin?: string;
     idleTimeoutMs?: number;
     onStdout?: (chunk: string) => void;
     onStderr?: (chunk: string) => void;
@@ -73,9 +72,10 @@ export function docker(options: {
           `${worktreeDir}:${workdir}`,
           "-w",
           workdir,
+          "--entrypoint",
+          "sleep",
           ...envArgs,
           options.imageName,
-          "sleep",
           "infinity",
         ],
         { cwd: repoDir },
@@ -89,10 +89,9 @@ export function docker(options: {
         async exec(input) {
           return exec(
             "docker",
-            ["exec", "-i", containerName, "sh", "-lc", input.command],
+            ["exec", "-i", containerName, "sh", "-c", input.command],
             {
               cwd: repoDir,
-              stdin: input.stdin,
               idleTimeoutMs: input.idleTimeoutMs,
               onStdout: input.onStdout,
               onStderr: input.onStderr,

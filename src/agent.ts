@@ -1,6 +1,5 @@
 export interface AgentCommand {
   command: string;
-  stdin?: string;
 }
 
 export interface Agent {
@@ -14,9 +13,12 @@ export function shellAgent(options: { name?: string; command: string }): Agent {
 
     buildCommand({ prompt }) {
       return {
-        command: options.command,
-        stdin: prompt,
+        command: `${options.command} ${quoteShell(prompt)}`,
       };
     },
   };
+}
+
+function quoteShell(value: string): string {
+  return `'${value.replaceAll("'", "'\\''")}'`;
 }

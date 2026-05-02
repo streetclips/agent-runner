@@ -1,24 +1,35 @@
-import { docker, run, shellAgent } from "../src/index.js";
+import { docker, run } from "../src/index.js";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { claudeCode } from "../src/agents/claude.js";
 
 const repoDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const claudeToken = process.env.CLAUDE_CODE_OAUTH_TOKEN;
+
+if (!claudeToken) {
+  throw new Error("CLAUDE_CODE_OAUTH_TOKEN is required");
+}
 
 const result = await run({
-  agent: shellAgent({
-    command: "node /agent/mock-agent.js",
-  }),
+  agent: claudeCode("claude-sonnet-4-6"),
 
   sandbox: docker({
     imageName: "mini-agent-runner:local",
     dockerfile: "Dockerfile",
+    env: {
+      CLAUDE_CODE_OAUTH_TOKEN: claudeToken,
+    },
   }),
+
+  logging: {
+    type: "stdout",
+  },
 
   branch: "agent/demo",
   cwd: repoDir,
   prompt: "Actualiza el README y termina con <promise>COMPLETE</promise>",
   maxIterations: 3,
-  idleTimeoutSeconds: 60,
+  idleTimeoutSeconds: 60 * 10,
 });
 
 console.log({

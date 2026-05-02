@@ -1,9 +1,21 @@
 import path from "node:path";
+import { createWriteStream, type WriteStream } from "node:fs";
+import { mkdir } from "node:fs/promises";
 import type { Agent } from "./agent.js";
 import { commitAll, createWorktree } from "./git.js";
 import type { Sandbox } from "./sandboxes/docker.js";
 
 export const DEFAULT_COMPLETION_SIGNAL = "<promise>COMPLETE</promise>";
+
+export type LoggingOption =
+  | {
+      type: "file";
+      path?: string;
+      tee?: boolean;
+    }
+  | {
+      type: "stdout";
+    };
 
 export interface RunOptions {
   agent: Agent;
@@ -14,6 +26,7 @@ export interface RunOptions {
   maxIterations?: number;
   completionSignal?: string | string[];
   idleTimeoutSeconds?: number;
+  logging?: LoggingOption;
 }
 
 export interface IterationResult {
@@ -31,35 +44,122 @@ export interface RunResult {
   stdout: string;
   completionSignal?: string;
   commits: { sha: string }[];
+  logFilePath?: string;
+}
+
+function sanitizeBranchForFilename(branch: string): string {
+  return branch.replace(/[/\\:*?"<>|]/g, "-");
+}
+
+function defaultLogPath(input: {
+  repoDir: string;
+  branch: string;
+  agentName: string;
+}): string {
+  return path.join(
+    input.repoDir,
+    ".mini-agent",
+    "logs",
+    `${sanitizeBranchForFilename(input.branch)}-${input.agentName}.log`,
+  );
+}
+
+class FileLogger {
+  constructor(
+    readonly path: string,
+    private readonly stream: WriteStream,
+  ) {}
+
+  static async create(filePath: string): Promise<FileLogger> {
+    await mkdir(path.dirname(filePath), { recursive: true });
+    const stream = createWriteStream(filePath, { flags: "a" });
+    const logger = new FileLogger(filePath, stream);
+    logger.write(`\n--- Run started: ${new Date().toISOString()} ---\n`);
+    return logger;
+  }
+
+  write(chunk: string): void {
+    this.stream.write(chunk);
+  }
+
+  line(message: string): void {
+    this.write(`${message}\n`);
+  }
+
+  close(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      this.stream.end((error?: Error | null) => {
+        if (error) {
+          reject(error);
+          return;
+        }
+
+        resolve();
+      });
+    });
+  }
 }
 
 export async function run(options: RunOptions): Promise<RunResult> {
   const repoDir = path.resolve(options.cwd ?? process.cwd());
   const maxIterations = options.maxIterations ?? 1;
   const idleTimeoutMs = (options.idleTimeoutSeconds ?? 600) * 1000;
+  const logging = options.logging ?? {
+    type: "file" as const,
+    path: defaultLogPath({
+      repoDir,
+      branch: options.branch,
+      agentName: options.agent.name,
+    }),
+    tee: true,
+  };
+  const teeToConsole = logging.type === "stdout" || logging.tee !== false;
 
   const completionSignals = Array.isArray(options.completionSignal)
     ? options.completionSignal
     : [options.completionSignal ?? DEFAULT_COMPLETION_SIGNAL];
 
-  const worktreeDir = await createWorktree({
-    repoDir,
-    branch: options.branch,
-  });
+  const logger =
+    logging.type === "file"
+      ? await FileLogger.create(
+          path.resolve(repoDir, logging.path ?? defaultLogPath({
+            repoDir,
+            branch: options.branch,
+            agentName: options.agent.name,
+          })),
+        )
+      : undefined;
 
-  const sandbox = await options.sandbox.start({
-    repoDir,
-    worktreeDir,
-  });
+  if (logger) {
+    console.log(`[run] logging agent output to ${logger.path}`);
+    logger.line(`Agent: ${options.agent.name}`);
+    logger.line(`Sandbox: ${options.sandbox.name}`);
+    logger.line(`Branch: ${options.branch}`);
+    logger.line(`Max iterations: ${maxIterations}`);
+  }
 
   const iterations: IterationResult[] = [];
   const commits: { sha: string }[] = [];
   let allStdout = "";
   let matchedCompletionSignal: string | undefined;
+  let sandbox: Awaited<ReturnType<Sandbox["start"]>> | undefined;
+  let worktreeDir = "";
 
   try {
+    worktreeDir = await createWorktree({
+      repoDir,
+      branch: options.branch,
+    });
+
+    sandbox = await options.sandbox.start({
+      repoDir,
+      worktreeDir,
+    });
+
     for (let i = 1; i <= maxIterations; i++) {
-      console.log(`[run] iteration ${i}/${maxIterations}`);
+      const iterationMessage = `[run] iteration ${i}/${maxIterations}`;
+      console.log(iterationMessage);
+      logger?.line(iterationMessage);
 
       const agentCommand = options.agent.buildCommand({
         prompt: options.prompt,
@@ -67,17 +167,23 @@ export async function run(options: RunOptions): Promise<RunResult> {
 
       const result = await sandbox.exec({
         command: agentCommand.command,
-        stdin: agentCommand.stdin,
         idleTimeoutMs,
         onStdout(chunk) {
-          process.stdout.write(chunk);
+          if (teeToConsole) {
+            process.stdout.write(chunk);
+          }
+          logger?.write(chunk);
         },
         onStderr(chunk) {
-          process.stderr.write(chunk);
+          if (teeToConsole) {
+            process.stderr.write(chunk);
+          }
+          logger?.write(chunk);
         },
       });
 
       if (result.exitCode !== 0) {
+        logger?.line(`[run] agent failed with exit code ${result.exitCode}`);
         throw new Error(
           `Agent failed with exit code ${result.exitCode}:\n${result.stderr}`,
         );
@@ -104,11 +210,14 @@ export async function run(options: RunOptions): Promise<RunResult> {
 
       if (commit.sha) {
         commits.push({ sha: commit.sha });
+        logger?.line(`[run] committed ${commit.sha}`);
       }
 
       if (completionSignal) {
         matchedCompletionSignal = completionSignal;
-        console.log(`[run] completion signal matched: ${completionSignal}`);
+        const completionMessage = `[run] completion signal matched: ${completionSignal}`;
+        console.log(completionMessage);
+        logger?.line(completionMessage);
         break;
       }
     }
@@ -120,8 +229,13 @@ export async function run(options: RunOptions): Promise<RunResult> {
       stdout: allStdout,
       completionSignal: matchedCompletionSignal,
       commits,
+      logFilePath: logger?.path,
     };
   } finally {
-    await sandbox.close();
+    try {
+      await sandbox?.close();
+    } finally {
+      await logger?.close();
+    }
   }
 }

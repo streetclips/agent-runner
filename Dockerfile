@@ -1,11 +1,27 @@
-FROM node:22-bookworm-slim
+FROM node:22-bookworm
 
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends git ca-certificates bash \
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+  git \
+  curl \
+  jq \
   && rm -rf /var/lib/apt/lists/*
 
-WORKDIR /workspace
+# Rename the base image's "node" user (UID 1000) to "agent".
+# This keeps UID 1000 so that --userns=keep-id (Podman) and
+# --user 1000:1000 (Docker) map to the correct home directory owner.
+RUN usermod -d /home/agent -m -l agent node
+USER agent
 
-COPY agent /agent
+# Install Claude Code CLI
+RUN curl -fsSL https://claude.ai/install.sh | bash
 
-CMD ["sleep", "infinity"]
+# Add Claude to PATH
+ENV PATH="/home/agent/.local/bin:$PATH"
+
+WORKDIR /home/agent
+
+# In worktree sandbox mode, Sandcastle bind-mounts the git worktree at /home/agent/workspace
+# and overrides the working directory to /home/agent/workspace at container start.
+# Structure your Dockerfile so that /home/agent/workspace can serve as the project root.
+ENTRYPOINT ["sleep", "infinity"]
