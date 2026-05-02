@@ -1,4 +1,4 @@
-import type { Agent, ParsedStreamEvent } from "../agent.js";
+import { Agent, ParsedStreamEvent, quoteShell } from '../agent.js'
 
 const TOOL_ARG_FIELDS: Record<string, string> = {
   Edit: "file_path",
@@ -84,22 +84,29 @@ export const parseStreamJsonLine = (line: string): ParsedStreamEvent[] => {
   return [];
 };
 
-export function claudeCode(model: string): Agent {
+export function claudeCode(model: string, config?: {
+  effort?: 'low' | 'medium' | 'high'
+}): Agent {
   return {
     name: "claude-code",
 
     buildCommand({ prompt }) {
-      return {
-        command: `claude --model ${quoteShell(model)} -p ${quoteShell(prompt)} --permission-mode bypassPermissions --print --verbose --output-format stream-json`,
-      };
+      const command = [
+        "claude",
+        `--model ${quoteShell(model)}`,
+        `-p ${quoteShell(prompt)}`,
+        config?.effort ? `-effort ${quoteShell(config.effort)}` : null,
+        "--permission-mode bypassPermissions",
+        "--print",
+        "--verbose",
+        "--output-format stream-json",
+      ].filter(Boolean).join(" ");
+
+      return { command };
     },
 
     parseStreamLine(line) {
       return parseStreamJsonLine(line);
     },
   };
-}
-
-function quoteShell(value: string): string {
-  return `'${value.replaceAll("'", "'\\''")}'`;
 }
