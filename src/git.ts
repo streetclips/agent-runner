@@ -26,6 +26,9 @@ export async function createWorktree(input: {
   );
 
   await mkdir(path.dirname(worktreePath), { recursive: true });
+  await exec("git", ["worktree", "remove", "--force", worktreePath], {
+    cwd: input.repoDir,
+  });
   await rm(worktreePath, { recursive: true, force: true });
 
   const result = await exec(

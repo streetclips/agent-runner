@@ -99,7 +99,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
 
       const commit = await commitAll({
         cwd: worktreeDir,
-        message: `Agent iteration ${i}`,
+        message: `[${options.branch}] Agent iteration ${i}`,
       });
 
       if (commit.sha) {
