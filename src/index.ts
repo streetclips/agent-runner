@@ -9,4 +9,4 @@ export type {
   LoggingOption,
 } from "./run.js";
 
-export type { Agent } from "./agent.js";
+export type { Agent, ParsedStreamEvent } from "./agent.js";

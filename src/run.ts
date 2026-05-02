@@ -1,7 +1,7 @@
 import path from "node:path";
 import { createWriteStream, type WriteStream } from "node:fs";
 import { mkdir } from "node:fs/promises";
-import type { Agent } from "./agent.js";
+import type { Agent, ParsedStreamEvent } from "./agent.js";
 import { commitAll, createWorktree } from "./git.js";
 import type { Sandbox } from "./sandboxes/docker.js";
 
@@ -27,6 +27,10 @@ export interface RunOptions {
   completionSignal?: string | string[];
   idleTimeoutSeconds?: number;
   logging?: LoggingOption;
+  onStep?: (
+    event: ParsedStreamEvent,
+    context: { iteration: number },
+  ) => void;
 }
 
 export interface IterationResult {
@@ -34,6 +38,7 @@ export interface IterationResult {
   stdout: string;
   stderr: string;
   exitCode: number;
+  parsedEvents: ParsedStreamEvent[];
   completionSignal?: string;
 }
 
@@ -164,6 +169,15 @@ export async function run(options: RunOptions): Promise<RunResult> {
       const agentCommand = options.agent.buildCommand({
         prompt: options.prompt,
       });
+      const parsedEvents: ParsedStreamEvent[] = [];
+      let stdoutLineBuffer = "";
+
+      const parseStdoutLine = (line: string) => {
+        for (const event of options.agent.parseStreamLine?.(line) ?? []) {
+          parsedEvents.push(event);
+          options.onStep?.(event, { iteration: i });
+        }
+      };
 
       const result = await sandbox.exec({
         command: agentCommand.command,
@@ -173,6 +187,16 @@ export async function run(options: RunOptions): Promise<RunResult> {
             process.stdout.write(chunk);
           }
           logger?.write(chunk);
+
+          if (options.agent.parseStreamLine) {
+            stdoutLineBuffer += chunk;
+            const lines = stdoutLineBuffer.split("\n");
+            stdoutLineBuffer = lines.pop() ?? "";
+
+            for (const line of lines) {
+              parseStdoutLine(line);
+            }
+          }
         },
         onStderr(chunk) {
           if (teeToConsole) {
@@ -181,6 +205,10 @@ export async function run(options: RunOptions): Promise<RunResult> {
           logger?.write(chunk);
         },
       });
+
+      if (stdoutLineBuffer.length > 0) {
+        parseStdoutLine(stdoutLineBuffer);
+      }
 
       if (result.exitCode !== 0) {
         logger?.line(`[run] agent failed with exit code ${result.exitCode}`);
@@ -198,6 +226,7 @@ export async function run(options: RunOptions): Promise<RunResult> {
         stdout: result.stdout,
         stderr: result.stderr,
         exitCode: result.exitCode,
+        parsedEvents,
         completionSignal,
       });
 
