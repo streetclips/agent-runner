@@ -1,9 +1,14 @@
 import type { Agent, ParsedStreamEvent } from "../agent.js";
 
 const TOOL_ARG_FIELDS: Record<string, string> = {
+  Edit: "file_path",
   Bash: "command",
+  Glob: "pattern",
+  Grep: "pattern",
+  Read: "file_path",
   WebSearch: "query",
   WebFetch: "url",
+  Write: "file_path",
   Agent: "description",
 };
 

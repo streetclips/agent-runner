@@ -69,6 +69,23 @@ function defaultLogPath(input: {
   );
 }
 
+function ensureTrailingNewline(value: string): string {
+  return value.endsWith("\n") ? value : `${value}\n`;
+}
+
+function renderStreamEvent(event: ParsedStreamEvent): string | undefined {
+  switch (event.type) {
+    case "text":
+      return ensureTrailingNewline(event.text);
+    case "tool_call":
+      return `[tool] ${event.name}: ${event.args}\n`;
+    case "session_id":
+      return `[session] ${event.sessionId}\n`;
+    case "result":
+      return undefined;
+  }
+}
+
 class FileLogger {
   constructor(
     readonly path: string,
@@ -176,14 +193,22 @@ export async function run(options: RunOptions): Promise<RunResult> {
         for (const event of options.agent.parseStreamLine?.(line) ?? []) {
           parsedEvents.push(event);
           options.onStep?.(event, { iteration: i });
+
+          if (teeToConsole) {
+            const rendered = renderStreamEvent(event);
+            if (rendered) {
+              process.stdout.write(rendered);
+            }
+          }
         }
       };
+      const printRawStdout = teeToConsole && !options.agent.parseStreamLine;
 
       const result = await sandbox.exec({
         command: agentCommand.command,
         idleTimeoutMs,
         onStdout(chunk) {
-          if (teeToConsole) {
+          if (printRawStdout) {
             process.stdout.write(chunk);
           }
           logger?.write(chunk);
