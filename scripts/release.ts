@@ -122,7 +122,7 @@ function parseArgs(argv: string[]): { releaseType: Exclude<ReleaseType, "fix">; 
     dryRun: false,
     skipChecks: false,
     preid: "next",
-    targetBranch: "main",
+    targetBranch: "master",
   }
 
   for (let index = 0; index < rawOptions.length; index += 1) {
@@ -334,7 +334,7 @@ Options:
   --preid <id>       Prerelease identifier. Defaults to next.
   --skip-checks      Skip lint, typecheck, and test.
   --target-branch <branch>
-                     Branch that triggers publishing. Defaults to main.
+                     Branch that triggers publishing. Defaults to master.
 
 Examples:
   npm run release -- fix

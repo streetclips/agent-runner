@@ -46,7 +46,7 @@ Releases follow the same branch flow as `kanbamd`:
 npm run release -- <major|minor|patch|fix|premajor|preminor|prepatch|prerelease>
 ```
 
-The release script must run from `dev` with a clean working tree. It runs lint, typecheck, and tests, bumps `package.json`, builds, commits the version bump, pushes `dev`, fast-forwards `main`, and pushes `main`.
+The release script must run from `dev` with a clean working tree. It runs lint, typecheck, and tests, bumps `package.json`, builds, commits the version bump, pushes `dev`, fast-forwards `master`, and pushes `master`.
 
-Publishing is handled by GitHub Actions on pushes to `main`. Configure the repository secret `NPM_TOKEN` with an npm token that can publish `@alejandrocantero/agent-runner`.
+Publishing is handled by GitHub Actions on pushes to `master`. Configure the repository secret `NPM_TOKEN` with an npm token that can publish `@alejandrocantero/agent-runner`.
 ```
