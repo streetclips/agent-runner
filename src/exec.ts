@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process"
-import type { ExecResult } from "#src/types.js"
+import type { ExecResult } from "./types.js"
 
 export function exec(
   command: string,

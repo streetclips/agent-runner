@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest"
-import { claudeCode } from "#src/agents/claude"
-import { run } from "#src/run"
-import { docker, dockerSandboxWithClaudeCode } from "#src/sandboxes/docker"
+import { claudeCode } from "../src/agents/claude.js"
+import { run } from "../src/run.js"
+import { docker, dockerSandboxWithClaudeCode } from "../src/sandboxes/docker.js"
 
 describe("public API", () => {
   test("exports the root run entrypoint", () => {

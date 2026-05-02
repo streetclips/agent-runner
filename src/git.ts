@@ -1,6 +1,6 @@
 import { mkdir, rm } from "node:fs/promises"
 import path from "node:path"
-import { exec } from "#src/exec.js"
+import { exec } from "./exec.js"
 
 export async function createWorktree(input: {
   repoDir: string

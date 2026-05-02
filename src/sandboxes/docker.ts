@@ -1,8 +1,8 @@
 import { randomUUID } from "node:crypto"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
-import { exec } from "#src/exec.js"
-import type { Sandbox } from "#src/types.js"
+import { exec } from "../exec.js"
+import type { Sandbox } from "../types.js"
 
 const CLAUDE_CODE_DOCKERFILE = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),

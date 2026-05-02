@@ -1,13 +1,7 @@
 import path from "node:path"
-import { FileLogger } from "#src/file-logger.js"
-import { commitAll, createWorktree } from "#src/git.js"
-import type {
-  IterationResult,
-  ParsedStreamEvent,
-  RunOptions,
-  RunResult,
-  Sandbox,
-} from "#src/types.js"
+import { FileLogger } from "./file-logger.js"
+import { commitAll, createWorktree } from "./git.js"
+import type { IterationResult, ParsedStreamEvent, RunOptions, RunResult, Sandbox } from "./types.js"
 
 export const DEFAULT_COMPLETION_SIGNAL = "<promise>COMPLETE</promise>"
 
