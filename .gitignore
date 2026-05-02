@@ -1,4 +1,5 @@
 node_modules/
 dist/
 .mini-agent/
+.idea/
 npm-debug.log*

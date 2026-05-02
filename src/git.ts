@@ -26,9 +26,19 @@ export async function createWorktree(input: {
   );
 
   await mkdir(path.dirname(worktreePath), { recursive: true });
-  await exec("git", ["worktree", "remove", "--force", worktreePath], {
+  const existingWorktreePath = await findWorktreeForBranch({
+    repoDir: input.repoDir,
+    branch: input.branch,
+  });
+  const pathToRemove = existingWorktreePath ?? worktreePath;
+  const remove = await exec("git", ["worktree", "remove", "--force", pathToRemove], {
     cwd: input.repoDir,
   });
+
+  if (remove.exitCode !== 0 && !remove.stderr.includes("is not a working tree")) {
+    throw new Error(remove.stderr);
+  }
+
   await rm(worktreePath, { recursive: true, force: true });
 
   const result = await exec(
@@ -42,6 +52,32 @@ export async function createWorktree(input: {
   }
 
   return worktreePath;
+}
+
+async function findWorktreeForBranch(input: {
+  repoDir: string;
+  branch: string;
+}): Promise<string | undefined> {
+  const result = await exec("git", ["worktree", "list", "--porcelain"], {
+    cwd: input.repoDir,
+  });
+
+  if (result.exitCode !== 0) {
+    throw new Error(result.stderr);
+  }
+
+  const entries = result.stdout.trim().split(/\n(?=worktree )/).filter(Boolean);
+
+  for (const entry of entries) {
+    const worktree = entry.match(/^worktree (.+)$/m)?.[1];
+    const branch = entry.match(/^branch refs\/heads\/(.+)$/m)?.[1];
+
+    if (worktree && branch === input.branch) {
+      return worktree;
+    }
+  }
+
+  return undefined;
 }
 
 export async function commitAll(input: {
