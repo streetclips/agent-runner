@@ -101,7 +101,7 @@ export function claudeCode(
         "claude",
         `--model ${quoteShell(model)}`,
         `-p ${quoteShell(prompt)}`,
-        config?.effort ? `-effort ${quoteShell(config.effort)}` : null,
+        config?.effort ? `--effort ${quoteShell(config.effort)}` : null,
         "--permission-mode bypassPermissions",
         "--print",
         "--verbose",
