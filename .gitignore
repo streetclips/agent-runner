@@ -1,0 +1,4 @@
+node_modules/
+dist/
+.mini-agent/
+npm-debug.log*
