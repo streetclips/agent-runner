@@ -1,23 +1,9 @@
 import { randomUUID } from "node:crypto"
 import path from "node:path"
-import { type ExecResult, exec } from "#src/exec.js"
+import { exec } from "#src/exec.js"
+import type { Sandbox } from "#src/types.js"
 
-export interface Sandbox {
-  name: string
-
-  start(input: { repoDir: string; worktreeDir: string }): Promise<SandboxHandle>
-}
-
-export interface SandboxHandle {
-  exec(input: {
-    command: string
-    idleTimeoutMs?: number
-    onStdout?: (chunk: string) => void
-    onStderr?: (chunk: string) => void
-  }): Promise<ExecResult>
-
-  close(): Promise<void>
-}
+export type { Sandbox, SandboxHandle } from "#src/types.js"
 
 export function docker(options: {
   imageName: string

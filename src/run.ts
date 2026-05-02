@@ -1,53 +1,18 @@
 import { type WriteStream, createWriteStream } from "node:fs"
 import { mkdir } from "node:fs/promises"
 import path from "node:path"
-import type { Agent, ParsedStreamEvent } from "#src/agent.js"
 import { commitAll, createWorktree } from "#src/git.js"
-import type { Sandbox } from "#src/sandboxes/docker.js"
+import type {
+  IterationResult,
+  ParsedStreamEvent,
+  RunOptions,
+  RunResult,
+  Sandbox,
+} from "#src/types.js"
 
 export const DEFAULT_COMPLETION_SIGNAL = "<promise>COMPLETE</promise>"
 
-export type LoggingOption =
-  | {
-      type: "file"
-      path?: string
-      tee?: boolean
-    }
-  | {
-      type: "stdout"
-    }
-
-export interface RunOptions {
-  agent: Agent
-  sandbox: Sandbox
-  prompt: string
-  branch: string
-  cwd?: string
-  maxIterations?: number
-  completionSignal?: string | string[]
-  idleTimeoutSeconds?: number
-  logging?: LoggingOption
-  onStep?: (event: ParsedStreamEvent, context: { iteration: number }) => void
-}
-
-export interface IterationResult {
-  index: number
-  stdout: string
-  stderr: string
-  exitCode: number
-  parsedEvents: ParsedStreamEvent[]
-  completionSignal?: string
-}
-
-export interface RunResult {
-  branch: string
-  worktreeDir: string
-  iterations: IterationResult[]
-  stdout: string
-  completionSignal?: string
-  commits: { sha: string }[]
-  logFilePath?: string
-}
+export type { IterationResult, LoggingOption, RunOptions, RunResult } from "#src/types.js"
 
 function sanitizeBranchForFilename(branch: string): string {
   return branch.replace(/[/\\:*?"<>|]/g, "-")

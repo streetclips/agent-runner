@@ -1,10 +1,7 @@
 import { spawn } from "node:child_process"
+import type { ExecResult } from "#src/types.js"
 
-export interface ExecResult {
-  stdout: string
-  stderr: string
-  exitCode: number
-}
+export type { ExecResult } from "#src/types.js"
 
 export function exec(
   command: string,
