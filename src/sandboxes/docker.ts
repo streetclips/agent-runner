@@ -1,39 +1,39 @@
-import { randomUUID } from "node:crypto";
-import path from "node:path";
-import { exec, type ExecResult } from "../exec.js";
+import { randomUUID } from "node:crypto"
+import path from "node:path"
+import { type ExecResult, exec } from "../exec.js"
 
 export interface Sandbox {
-  name: string;
+  name: string
 
-  start(input: { repoDir: string; worktreeDir: string }): Promise<SandboxHandle>;
+  start(input: { repoDir: string; worktreeDir: string }): Promise<SandboxHandle>
 }
 
 export interface SandboxHandle {
   exec(input: {
-    command: string;
-    idleTimeoutMs?: number;
-    onStdout?: (chunk: string) => void;
-    onStderr?: (chunk: string) => void;
-  }): Promise<ExecResult>;
+    command: string
+    idleTimeoutMs?: number
+    onStdout?: (chunk: string) => void
+    onStderr?: (chunk: string) => void
+  }): Promise<ExecResult>
 
-  close(): Promise<void>;
+  close(): Promise<void>
 }
 
 export function docker(options: {
-  imageName: string;
-  dockerfile?: string;
-  context?: string;
-  workdir?: string;
-  env?: Record<string, string>;
+  imageName: string
+  dockerfile?: string
+  context?: string
+  workdir?: string
+  env?: Record<string, string>
 }): Sandbox {
   return {
     name: "docker",
 
     async start({ repoDir, worktreeDir }) {
-      const dockerfile = options.dockerfile ?? "Dockerfile";
-      const context = options.context ?? ".";
-      const workdir = options.workdir ?? "/workspace";
-      const containerName = `mini-agent-${randomUUID()}`;
+      const dockerfile = options.dockerfile ?? "Dockerfile"
+      const context = options.context ?? "."
+      const workdir = options.workdir ?? "/workspace"
+      const containerName = `mini-agent-${randomUUID()}`
 
       const build = await exec(
         "docker",
@@ -50,16 +50,16 @@ export function docker(options: {
           onStdout: process.stdout.write.bind(process.stdout),
           onStderr: process.stderr.write.bind(process.stderr),
         },
-      );
+      )
 
       if (build.exitCode !== 0) {
-        throw new Error(`Docker build failed:\n${build.stderr}`);
+        throw new Error(`Docker build failed:\n${build.stderr}`)
       }
 
       const envArgs = Object.entries(options.env ?? {}).flatMap(([key, value]) => [
         "-e",
         `${key}=${value}`,
-      ]);
+      ])
 
       const run = await exec(
         "docker",
@@ -79,32 +79,28 @@ export function docker(options: {
           "infinity",
         ],
         { cwd: repoDir },
-      );
+      )
 
       if (run.exitCode !== 0) {
-        throw new Error(`Docker run failed:\n${run.stderr}`);
+        throw new Error(`Docker run failed:\n${run.stderr}`)
       }
 
       return {
         async exec(input) {
-          return exec(
-            "docker",
-            ["exec", "-i", containerName, "sh", "-c", input.command],
-            {
-              cwd: repoDir,
-              idleTimeoutMs: input.idleTimeoutMs,
-              onStdout: input.onStdout,
-              onStderr: input.onStderr,
-            },
-          );
+          return exec("docker", ["exec", "-i", containerName, "sh", "-c", input.command], {
+            cwd: repoDir,
+            idleTimeoutMs: input.idleTimeoutMs,
+            onStdout: input.onStdout,
+            onStderr: input.onStderr,
+          })
         },
 
         async close() {
           await exec("docker", ["rm", "-f", containerName], {
             cwd: repoDir,
-          });
+          })
         },
-      };
+      }
     },
-  };
+  }
 }

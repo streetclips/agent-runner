@@ -1,21 +1,21 @@
-import { spawn } from "node:child_process";
+import { spawn } from "node:child_process"
 
 export interface ExecResult {
-  stdout: string;
-  stderr: string;
-  exitCode: number;
+  stdout: string
+  stderr: string
+  exitCode: number
 }
 
 export function exec(
   command: string,
   args: string[],
   options?: {
-    cwd?: string;
-    stdin?: string;
-    env?: NodeJS.ProcessEnv;
-    idleTimeoutMs?: number;
-    onStdout?: (chunk: string) => void;
-    onStderr?: (chunk: string) => void;
+    cwd?: string
+    stdin?: string
+    env?: NodeJS.ProcessEnv
+    idleTimeoutMs?: number
+    onStdout?: (chunk: string) => void
+    onStderr?: (chunk: string) => void
   },
 ): Promise<ExecResult> {
   return new Promise((resolve, reject) => {
@@ -23,76 +23,82 @@ export function exec(
       cwd: options?.cwd,
       env: options?.env,
       stdio: ["pipe", "pipe", "pipe"],
-    });
+    })
 
-    let stdout = "";
-    let stderr = "";
-    let idleTimer: NodeJS.Timeout | undefined;
-    let settled = false;
+    let stdout = ""
+    let stderr = ""
+    let idleTimer: NodeJS.Timeout | undefined
+    let settled = false
 
     const cleanupIdleTimer = () => {
       if (idleTimer) {
-        clearTimeout(idleTimer);
-        idleTimer = undefined;
+        clearTimeout(idleTimer)
+        idleTimer = undefined
       }
-    };
+    }
 
     const fail = (error: Error) => {
-      if (settled) return;
-      settled = true;
-      cleanupIdleTimer();
-      child.kill("SIGTERM");
-      reject(error);
-    };
+      if (settled) {
+        return
+      }
+      settled = true
+      cleanupIdleTimer()
+      child.kill("SIGTERM")
+      reject(error)
+    }
 
     const resetIdleTimer = () => {
-      if (!options?.idleTimeoutMs) return;
+      if (!options?.idleTimeoutMs) {
+        return
+      }
 
-      cleanupIdleTimer();
+      cleanupIdleTimer()
 
       idleTimer = setTimeout(() => {
         fail(
           new Error(
             `Command was idle for ${options.idleTimeoutMs}ms: ${command} ${args.join(" ")}`,
           ),
-        );
-      }, options.idleTimeoutMs);
-    };
+        )
+      }, options.idleTimeoutMs)
+    }
 
-    resetIdleTimer();
+    resetIdleTimer()
 
     child.stdout.on("data", (buffer: Buffer) => {
-      resetIdleTimer();
-      const chunk = buffer.toString();
-      stdout += chunk;
-      options?.onStdout?.(chunk);
-    });
+      resetIdleTimer()
+      const chunk = buffer.toString()
+      stdout += chunk
+      options?.onStdout?.(chunk)
+    })
 
     child.stderr.on("data", (buffer: Buffer) => {
-      resetIdleTimer();
-      const chunk = buffer.toString();
-      stderr += chunk;
-      options?.onStderr?.(chunk);
-    });
+      resetIdleTimer()
+      const chunk = buffer.toString()
+      stderr += chunk
+      options?.onStderr?.(chunk)
+    })
 
-    child.on("error", fail);
+    child.on("error", fail)
 
     child.on("close", (code) => {
-      if (settled) return;
-      settled = true;
-      cleanupIdleTimer();
+      if (settled) {
+        return
+      }
+      settled = true
+      cleanupIdleTimer()
 
       resolve({
         stdout,
         stderr,
         exitCode: code ?? 0,
-      });
-    });
+      })
+    })
 
     if (options?.stdin !== undefined) {
-      child.stdin.write(options.stdin);
+      child.stdin.write(options.stdin)
     }
 
-    child.stdin.end();
-  });
+    child.stdin.end()
+  })
 }
