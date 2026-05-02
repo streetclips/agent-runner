@@ -1,8 +1,8 @@
 import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
-import { claudeCode } from "../src/agents/claude.ts"
-import { DEFAULT_COMPLETION_SIGNAL, run } from "../src/run.ts"
-import { dockerSandboxWithClaudeClode } from "../src/sandboxes/docker.ts"
+import { claudeCode } from "../src/agents/claude.js"
+import { DEFAULT_COMPLETION_SIGNAL, run } from "../src/run.js"
+import { dockerSandboxWithClaudeCode } from "../src/sandboxes/docker.js"
 
 const repoDir = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const claudeToken = process.env.CLAUDE_CODE_OAUTH_TOKEN
@@ -15,7 +15,7 @@ const result = await run({
   agent: claudeCode("claude-sonnet-4-6", {
     effort: "low",
   }),
-  sandbox: dockerSandboxWithClaudeClode({
+  sandbox: dockerSandboxWithClaudeCode({
     env: {
       CLAUDE_CODE_OAUTH_TOKEN: claudeToken,
     },

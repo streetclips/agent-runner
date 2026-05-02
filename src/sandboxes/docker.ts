@@ -99,7 +99,7 @@ export function docker(options: {
   }
 }
 
-export function dockerSandboxWithClaudeClode(options?: {
+export function dockerSandboxWithClaudeCode(options?: {
   imageName?: string
   context?: string
   workdir?: string

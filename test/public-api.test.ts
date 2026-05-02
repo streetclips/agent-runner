@@ -1,7 +1,7 @@
 import { describe, expect, test } from "vitest"
 import { claudeCode } from "#src/agents/claude"
 import { run } from "#src/run"
-import { docker, dockerSandboxWithClaudeClode } from "#src/sandboxes/docker"
+import { docker, dockerSandboxWithClaudeCode } from "#src/sandboxes/docker"
 
 describe("public API", () => {
   test("exports the root run entrypoint", () => {
@@ -18,7 +18,7 @@ describe("public API", () => {
   })
 
   test("exports a default Claude Code docker sandbox", () => {
-    const sandbox = dockerSandboxWithClaudeClode()
+    const sandbox = dockerSandboxWithClaudeCode()
 
     expect(sandbox.name).toBe("docker")
   })
