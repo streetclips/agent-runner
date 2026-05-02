@@ -1,4 +1,8 @@
 import { docker, run, shellAgent } from "../src/index.js";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const repoDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const result = await run({
   agent: shellAgent({
@@ -11,6 +15,7 @@ const result = await run({
   }),
 
   branch: "agent/demo",
+  cwd: repoDir,
   prompt: "Actualiza el README y termina con <promise>COMPLETE</promise>",
   maxIterations: 3,
   idleTimeoutSeconds: 60,
