@@ -2,7 +2,7 @@ import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { claudeCode } from "../src/agents/claude.js"
 import { commitAll, createWorktree, deleteWorktree } from "../src/git.js"
-import { DEFAULT_COMPLETION_SIGNAL, execInSandbox, runTask } from "../src/run.js"
+import { execInSandbox, runTask } from "../src/run.js"
 import { dockerSandboxWithClaudeCode } from "../src/sandboxes/docker.js"
 
 const repoDir = resolve(dirname(fileURLToPath(import.meta.url)), "..")
@@ -38,8 +38,7 @@ const result = await runTask({
     type: "stdout",
   },
   workspaceDir: worktreePath,
-  completionSignal: DEFAULT_COMPLETION_SIGNAL,
-  prompt: `Actualiza el README y termina con ${DEFAULT_COMPLETION_SIGNAL}`,
+  prompt: "Update README.md",
   maxIterations: 3,
   idleTimeoutSeconds: 60 * 10,
   hooks: {

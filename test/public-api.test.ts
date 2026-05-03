@@ -4,7 +4,14 @@ import { tmpdir } from "node:os"
 import path from "node:path"
 import { describe, expect, test } from "vitest"
 import { claudeCode } from "../src/agents/claude.js"
-import { commitAll, deleteWorktree, execInSandbox, runTask } from "../src/run.js"
+import {
+  DEFAULT_COMPLETION_PROMPT,
+  DEFAULT_COMPLETION_SIGNAL,
+  commitAll,
+  deleteWorktree,
+  execInSandbox,
+  runTask,
+} from "../src/run.js"
 import { docker, dockerSandboxWithClaudeCode } from "../src/sandboxes/docker.js"
 import type { Agent, ExecResult, RunTaskOptions, Sandbox, SandboxHandle } from "../src/types.js"
 
@@ -13,6 +20,16 @@ function fakeAgent(command = "agent-command"): Agent {
     name: "fake-agent",
     buildCommand() {
       return { command }
+    },
+  }
+}
+
+function promptCapturingAgent(input: { prompts: string[]; command?: string }): Agent {
+  return {
+    name: "fake-agent",
+    buildCommand({ prompt }) {
+      input.prompts.push(prompt)
+      return { command: input.command ?? "agent-command" }
     },
   }
 }
@@ -122,6 +139,80 @@ describe("public API", () => {
     expect(result.workspaceDir).toBe(workspaceDir)
     expect(result.status).toBe("completed")
     expect(result.iterations).toHaveLength(1)
+  })
+
+  test("appends the default completion prompt to the agent prompt", async () => {
+    const workspaceDir = await mkdtemp(path.join(tmpdir(), "agent-runner-workspace-"))
+    const prompts: string[] = []
+
+    const result = await runTask({
+      agent: promptCapturingAgent({ prompts }),
+      sandbox: fakeSandbox(),
+      workspaceDir,
+      prompt: "finish",
+      logging: { type: "stdout" },
+    })
+
+    expect(result.status).toBe("completed")
+    expect(prompts).toEqual([
+      `finish\n\n${DEFAULT_COMPLETION_PROMPT}\n${DEFAULT_COMPLETION_SIGNAL}`,
+    ])
+  })
+
+  test("uses a custom completion signal for detection and the default completion prompt", async () => {
+    const workspaceDir = await mkdtemp(path.join(tmpdir(), "agent-runner-workspace-"))
+    const prompts: string[] = []
+    const completionSignal = "<promise>DONE</promise>"
+
+    const result = await runTask({
+      agent: promptCapturingAgent({ prompts }),
+      sandbox: fakeSandbox({
+        onExec: () => execResult({ stdout: completionSignal }),
+      }),
+      workspaceDir,
+      prompt: "finish",
+      completionSignal,
+      logging: { type: "stdout" },
+    })
+
+    expect(result.status).toBe("completed")
+    expect(result.completionSignal).toBe(completionSignal)
+    expect(prompts).toEqual([`finish\n\n${DEFAULT_COMPLETION_PROMPT}\n${completionSignal}`])
+  })
+
+  test("appends a custom completion prompt verbatim", async () => {
+    const workspaceDir = await mkdtemp(path.join(tmpdir(), "agent-runner-workspace-"))
+    const prompts: string[] = []
+    const completionPrompt = "Say DONE when all work is finished."
+
+    const result = await runTask({
+      agent: promptCapturingAgent({ prompts }),
+      sandbox: fakeSandbox(),
+      workspaceDir,
+      prompt: "finish",
+      completionPrompt,
+      logging: { type: "stdout" },
+    })
+
+    expect(result.status).toBe("completed")
+    expect(prompts).toEqual([`finish\n\n${completionPrompt}`])
+  })
+
+  test("preserves the exact prompt when completion prompt is disabled", async () => {
+    const workspaceDir = await mkdtemp(path.join(tmpdir(), "agent-runner-workspace-"))
+    const prompts: string[] = []
+
+    const result = await runTask({
+      agent: promptCapturingAgent({ prompts }),
+      sandbox: fakeSandbox(),
+      workspaceDir,
+      prompt: "finish\n",
+      completionPrompt: false,
+      logging: { type: "stdout" },
+    })
+
+    expect(result.status).toBe("completed")
+    expect(prompts).toEqual(["finish\n"])
   })
 
   test("runs lifecycle hooks in order", async () => {

@@ -73,6 +73,7 @@ export interface RunTaskOptions {
   workspaceDir: string
   maxIterations?: number
   completionSignal?: string | string[]
+  completionPrompt?: string | false
   idleTimeoutSeconds?: number
   logging?: LoggingOption
   onStep?: (event: ParsedStreamEvent, context: { iteration: number }) => void

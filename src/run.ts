@@ -16,6 +16,8 @@ import type {
 export { commitAll, deleteWorktree, mergeBranchIntoHead } from "./git.js"
 
 export const DEFAULT_COMPLETION_SIGNAL = "<promise>COMPLETE</promise>"
+export const DEFAULT_COMPLETION_PROMPT =
+  "When the task is complete, output the completion signal exactly as written:"
 
 function defaultLogPath(input: {
   workspaceDir: string
@@ -26,6 +28,16 @@ function defaultLogPath(input: {
 
 function ensureTrailingNewline(value: string): string {
   return value.endsWith("\n") ? value : `${value}\n`
+}
+
+function buildPrompt(input: { prompt: string; completionPrompt?: string | false }): string {
+  if (input.completionPrompt === false) {
+    return input.prompt
+  }
+
+  const completionPrompt = input.completionPrompt ?? DEFAULT_COMPLETION_PROMPT
+
+  return `${input.prompt.trimEnd()}\n\n${completionPrompt}`
 }
 
 function renderStreamEvent(event: ParsedStreamEvent): string | undefined {
@@ -142,6 +154,14 @@ export async function runTask(options: RunTaskOptions): Promise<RunTaskResult> {
   const completionSignals = Array.isArray(options.completionSignal)
     ? options.completionSignal
     : [options.completionSignal ?? DEFAULT_COMPLETION_SIGNAL]
+  const completionPrompt =
+    options.completionPrompt === undefined
+      ? `${DEFAULT_COMPLETION_PROMPT}\n${completionSignals[0] ?? DEFAULT_COMPLETION_SIGNAL}`
+      : options.completionPrompt
+  const prompt = buildPrompt({
+    prompt: options.prompt,
+    completionPrompt,
+  })
 
   const logger =
     logging.type === "file"
@@ -206,7 +226,7 @@ export async function runTask(options: RunTaskOptions): Promise<RunTaskResult> {
       logger?.line(iterationMessage)
 
       const agentCommand = options.agent.buildCommand({
-        prompt: options.prompt,
+        prompt,
       })
       const parsedEvents: ParsedStreamEvent[] = []
       let stdoutLineBuffer = ""

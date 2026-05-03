@@ -18,7 +18,7 @@ const sandbox: Sandbox = dockerSandboxWithClaudeCode()
 const result = await runTask({
   agent,
   sandbox,
-  prompt: "Update the README and finish with <promise>COMPLETE</promise>",
+  prompt: "Update the README",
   workspaceDir: "/path/to/workspace",
   maxIterations: 3,
   hooks: {
@@ -42,6 +42,11 @@ console.log(result)
 ```
 
 `result.logFilePath` contains the path to the log file when file logging is used.
+
+By default, `runTask` appends a completion instruction to the prompt and waits for
+`<promise>COMPLETE</promise>` in the agent output. Set `completionSignal` to use a
+different marker. Set `completionPrompt` to customize the appended instruction, or
+set `completionPrompt: false` to send the prompt exactly as provided.
 
 Lifecycle hooks run in this order:
 
