@@ -3,3 +3,4 @@ dist/
 .mini-agent/
 .idea/
 npm-debug.log*
+/.agent-runner/

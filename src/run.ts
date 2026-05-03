@@ -1,25 +1,27 @@
 import path from "node:path"
 import { FileLogger } from "./file-logger.js"
-import { commitAll, createWorktree } from "./git.js"
-import type { IterationResult, ParsedStreamEvent, RunOptions, RunResult, Sandbox } from "./types.js"
+import type {
+  ExecResult,
+  IterationResult,
+  ParsedStreamEvent,
+  RunTaskOptions,
+  RunTaskResult,
+  Sandbox,
+  TaskHook,
+  TaskHookContext,
+  TaskHookPhase,
+  TaskMetadata,
+  TaskStatus,
+} from "./types.js"
+export { commitAll, deleteWorktree, mergeBranchIntoHead } from "./git.js"
 
 export const DEFAULT_COMPLETION_SIGNAL = "<promise>COMPLETE</promise>"
 
-function sanitizeBranchForFilename(branch: string): string {
-  return branch.replace(/[/\\:*?"<>|]/g, "-")
-}
-
 function defaultLogPath(input: {
-  repoDir: string
-  branch: string
+  workspaceDir: string
   agentName: string
 }): string {
-  return path.join(
-    input.repoDir,
-    ".agent-runner",
-    "logs",
-    `${sanitizeBranchForFilename(input.branch)}-${input.agentName}.log`,
-  )
+  return path.join(input.workspaceDir, ".agent-runner", "logs", `${input.agentName}.log`)
 }
 
 function ensureTrailingNewline(value: string): string {
@@ -39,15 +41,98 @@ function renderStreamEvent(event: ParsedStreamEvent): string | undefined {
   }
 }
 
-export async function run(options: RunOptions): Promise<RunResult> {
-  const repoDir = path.resolve(options.cwd ?? process.cwd())
+function normalizeHooks(hookOrHooks: TaskHook | TaskHook[] | undefined): TaskHook[] {
+  if (hookOrHooks === undefined) {
+    return []
+  }
+
+  return Array.isArray(hookOrHooks) ? hookOrHooks : [hookOrHooks]
+}
+
+function mergeMetadata(metadata: TaskMetadata, update: unknown): void {
+  if (
+    update === undefined ||
+    update === null ||
+    typeof update !== "object" ||
+    Array.isArray(update)
+  ) {
+    return
+  }
+
+  Object.assign(metadata, update as TaskMetadata)
+}
+
+async function runHooks(input: {
+  phase: TaskHookPhase
+  options: RunTaskOptions
+  workspaceDir: string
+  sandbox?: Awaited<ReturnType<Sandbox["start"]>>
+  result?: RunTaskResult
+  status?: TaskStatus
+  error?: unknown
+  metadata: TaskMetadata
+}): Promise<unknown[]> {
+  const errors: unknown[] = []
+
+  for (const hook of normalizeHooks(input.options.hooks?.[input.phase])) {
+    const context: TaskHookContext = {
+      workspaceDir: input.workspaceDir,
+      options: input.options,
+      phase: input.phase,
+      sandbox: input.sandbox,
+      result: input.result,
+      status: input.status,
+      error: input.error,
+      metadata: input.metadata,
+    }
+
+    try {
+      mergeMetadata(input.metadata, await hook(context))
+    } catch (error) {
+      errors.push(error)
+    }
+  }
+
+  return errors
+}
+
+function combineErrors(errors: unknown[]): unknown {
+  if (errors.length === 0) {
+    return undefined
+  }
+
+  if (errors.length === 1) {
+    return errors[0]
+  }
+
+  return new AggregateError(errors, "Multiple task errors occurred")
+}
+
+export function execInSandbox(command: string): TaskHook {
+  return async (context) => {
+    if (!context.sandbox) {
+      throw new Error("execInSandbox requires a running sandbox")
+    }
+
+    const result: ExecResult = await context.sandbox.exec({ command })
+    if (result.exitCode !== 0) {
+      throw new Error(`Sandbox command failed with exit code ${result.exitCode}:\n${result.stderr}`)
+    }
+
+    return {
+      lastSandboxExec: result,
+    }
+  }
+}
+
+export async function runTask(options: RunTaskOptions): Promise<RunTaskResult> {
+  const workspaceDir = path.resolve(options.workspaceDir)
   const maxIterations = options.maxIterations ?? 1
   const idleTimeoutMs = (options.idleTimeoutSeconds ?? 600) * 1000
   const logging = options.logging ?? {
     type: "file" as const,
     path: defaultLogPath({
-      repoDir,
-      branch: options.branch,
+      workspaceDir,
       agentName: options.agent.name,
     }),
     tee: true,
@@ -62,11 +147,10 @@ export async function run(options: RunOptions): Promise<RunResult> {
     logging.type === "file"
       ? await FileLogger.create(
           path.resolve(
-            repoDir,
+            workspaceDir,
             logging.path ??
               defaultLogPath({
-                repoDir,
-                branch: options.branch,
+                workspaceDir,
                 agentName: options.agent.name,
               }),
           ),
@@ -77,27 +161,44 @@ export async function run(options: RunOptions): Promise<RunResult> {
     console.log(`[run] logging agent output to ${logger.path}`)
     logger.line(`Agent: ${options.agent.name}`)
     logger.line(`Sandbox: ${options.sandbox.name}`)
-    logger.line(`Branch: ${options.branch}`)
+    logger.line(`Workspace: ${workspaceDir}`)
     logger.line(`Max iterations: ${maxIterations}`)
   }
 
   const iterations: IterationResult[] = []
-  const commits: { sha: string }[] = []
+  const metadata: TaskMetadata = {}
+  const errors: unknown[] = []
   let allStdout = ""
   let matchedCompletionSignal: string | undefined
   let sandbox: Awaited<ReturnType<Sandbox["start"]>> | undefined
-  let worktreeDir = ""
+  let status: TaskStatus = "max_iterations"
+  let primaryError: unknown
 
   try {
-    worktreeDir = await createWorktree({
-      repoDir,
-      branch: options.branch,
+    const sandboxCreateErrors = await runHooks({
+      phase: "sandbox-create",
+      options,
+      workspaceDir,
+      metadata,
     })
+    if (sandboxCreateErrors.length > 0) {
+      throw combineErrors(sandboxCreateErrors)
+    }
 
     sandbox = await options.sandbox.start({
-      repoDir,
-      worktreeDir,
+      workspaceDir,
     })
+
+    const agentStartErrors = await runHooks({
+      phase: "agent-start",
+      options,
+      workspaceDir,
+      sandbox,
+      metadata,
+    })
+    if (agentStartErrors.length > 0) {
+      throw combineErrors(agentStartErrors)
+    }
 
     for (let i = 1; i <= maxIterations; i++) {
       const iterationMessage = `[run] iteration ${i}/${maxIterations}`
@@ -174,39 +275,75 @@ export async function run(options: RunOptions): Promise<RunResult> {
 
       allStdout += result.stdout
 
-      const commit = await commitAll({
-        cwd: worktreeDir,
-        message: `[${options.branch}] Agent iteration ${i}`,
-      })
-
-      if (commit.sha) {
-        commits.push({ sha: commit.sha })
-        logger?.line(`[run] committed ${commit.sha}`)
-      }
-
       if (completionSignal) {
         matchedCompletionSignal = completionSignal
+        status = "completed"
         const completionMessage = `[run] completion signal matched: ${completionSignal}`
         console.log(completionMessage)
         logger?.line(completionMessage)
         break
       }
     }
-
-    return {
-      branch: options.branch,
-      worktreeDir,
-      iterations,
-      stdout: allStdout,
-      completionSignal: matchedCompletionSignal,
-      commits,
-      logFilePath: logger?.path,
-    }
-  } finally {
-    try {
-      await sandbox?.close()
-    } finally {
-      await logger?.close()
-    }
+  } catch (error) {
+    status = "failed"
+    primaryError = error
+    errors.push(error)
   }
+
+  const result: RunTaskResult = {
+    workspaceDir,
+    iterations,
+    stdout: allStdout,
+    status,
+    completionSignal: matchedCompletionSignal,
+    error: primaryError,
+    metadata,
+    logFilePath: logger?.path,
+  }
+
+  errors.push(
+    ...(await runHooks({
+      phase: "agent-finish",
+      options,
+      workspaceDir,
+      sandbox,
+      result,
+      status,
+      error: primaryError,
+      metadata,
+    })),
+  )
+
+  try {
+    await sandbox?.close()
+  } catch (error) {
+    status = "failed"
+    primaryError ??= error
+    errors.push(error)
+  }
+
+  result.status = status
+  result.error = primaryError
+
+  errors.push(
+    ...(await runHooks({
+      phase: "sandbox-close",
+      options,
+      workspaceDir,
+      sandbox,
+      result,
+      status,
+      error: primaryError,
+      metadata,
+    })),
+  )
+
+  const finalError = combineErrors(errors)
+  if (finalError !== undefined) {
+    result.status = "failed"
+    result.error = finalError
+  }
+
+  await logger?.close()
+  return result
 }

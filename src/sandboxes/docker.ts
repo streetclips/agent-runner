@@ -19,28 +19,21 @@ export function docker(options: {
   return {
     name: "docker",
 
-    async start({ repoDir, worktreeDir }) {
+    async start({ workspaceDir }) {
       const dockerfile = options.dockerfile
       if (dockerfile !== undefined && !path.isAbsolute(dockerfile)) {
         throw new Error(`dockerfile must be an absolute path: ${dockerfile}`)
       }
 
-      const context = options.context ?? "."
+      const context = options.context ? path.resolve(workspaceDir, options.context) : workspaceDir
       const workdir = options.workdir ?? "/workspace"
       const containerName = `agent-runner-${randomUUID()}`
 
       const build = await exec(
         "docker",
-        [
-          "build",
-          "-t",
-          options.imageName,
-          "-f",
-          dockerfile ?? CLAUDE_CODE_DOCKERFILE,
-          path.resolve(repoDir, context),
-        ],
+        ["build", "-t", options.imageName, "-f", dockerfile ?? CLAUDE_CODE_DOCKERFILE, context],
         {
-          cwd: repoDir,
+          cwd: workspaceDir,
           onStdout: process.stdout.write.bind(process.stdout),
           onStderr: process.stderr.write.bind(process.stderr),
         },
@@ -63,7 +56,7 @@ export function docker(options: {
           "--name",
           containerName,
           "-v",
-          `${worktreeDir}:${workdir}`,
+          `${workspaceDir}:${workdir}`,
           "-w",
           workdir,
           "--entrypoint",
@@ -72,7 +65,7 @@ export function docker(options: {
           options.imageName,
           "infinity",
         ],
-        { cwd: repoDir },
+        { cwd: workspaceDir },
       )
 
       if (run.exitCode !== 0) {
@@ -82,7 +75,7 @@ export function docker(options: {
       return {
         async exec(input) {
           return exec("docker", ["exec", "-i", containerName, "sh", "-c", input.command], {
-            cwd: repoDir,
+            cwd: workspaceDir,
             idleTimeoutMs: input.idleTimeoutMs,
             onStdout: input.onStdout,
             onStderr: input.onStderr,
@@ -91,7 +84,7 @@ export function docker(options: {
 
         async close() {
           await exec("docker", ["rm", "-f", containerName], {
-            cwd: repoDir,
+            cwd: workspaceDir,
           })
         },
       }

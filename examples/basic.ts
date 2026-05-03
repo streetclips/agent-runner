@@ -1,17 +1,19 @@
 import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { claudeCode } from "../src/agents/claude.js"
-import { DEFAULT_COMPLETION_SIGNAL, run } from "../src/run.js"
+import { commitAll, createWorktree, deleteWorktree } from "../src/git.js"
+import { DEFAULT_COMPLETION_SIGNAL, execInSandbox, runTask } from "../src/run.js"
 import { dockerSandboxWithClaudeCode } from "../src/sandboxes/docker.js"
 
 const repoDir = resolve(dirname(fileURLToPath(import.meta.url)), "..")
+const worktreePath = await createWorktree({ repoDir, branch: "agent/demo" })
 const claudeToken = process.env.CLAUDE_CODE_OAUTH_TOKEN
 
 if (!claudeToken) {
   throw new Error("CLAUDE_CODE_OAUTH_TOKEN is required")
 }
 
-const result = await run({
+const result = await runTask({
   agent: claudeCode("claude-sonnet-4-6", {
     effort: "low",
   }),
@@ -23,18 +25,23 @@ const result = await run({
   logging: {
     type: "stdout",
   },
-  branch: "agent/demo",
-  cwd: repoDir,
+  workspaceDir: worktreePath,
   completionSignal: DEFAULT_COMPLETION_SIGNAL,
   prompt: `Actualiza el README y termina con ${DEFAULT_COMPLETION_SIGNAL}`,
   maxIterations: 3,
   idleTimeoutSeconds: 60 * 10,
+  hooks: {
+    "agent-start": execInSandbox("npm install"),
+    "agent-finish": commitAll({ message: "Agent changes" }),
+  },
 })
 
 console.log({
-  branch: result.branch,
-  worktreeDir: result.worktreeDir,
+  workspaceDir: result.workspaceDir,
+  status: result.status,
   iterations: result.iterations.length,
   completionSignal: result.completionSignal,
-  commits: result.commits,
+  metadata: result.metadata,
 })
+
+await deleteWorktree({ worktreeDir: worktreePath, force: true })

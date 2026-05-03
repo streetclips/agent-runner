@@ -23,7 +23,7 @@ export interface ExecResult {
 export interface Sandbox {
   name: string
 
-  start(input: { repoDir: string; worktreeDir: string }): Promise<SandboxHandle>
+  start(input: { workspaceDir: string }): Promise<SandboxHandle>
 }
 
 export interface SandboxHandle {
@@ -47,17 +47,36 @@ export type LoggingOption =
       type: "stdout"
     }
 
-export interface RunOptions {
+export type TaskStatus = "completed" | "max_iterations" | "failed"
+
+export type TaskHookPhase = "sandbox-create" | "agent-start" | "agent-finish" | "sandbox-close"
+
+export type TaskMetadata = Record<string, unknown>
+
+export interface TaskHookContext {
+  workspaceDir: string
+  options: RunTaskOptions
+  phase: TaskHookPhase
+  sandbox?: SandboxHandle
+  result?: RunTaskResult
+  status?: TaskStatus
+  error?: unknown
+  metadata: TaskMetadata
+}
+
+export type TaskHook = (context: TaskHookContext) => Promise<unknown> | unknown
+
+export interface RunTaskOptions {
   agent: Agent
   sandbox: Sandbox
   prompt: string
-  branch: string
-  cwd?: string
+  workspaceDir: string
   maxIterations?: number
   completionSignal?: string | string[]
   idleTimeoutSeconds?: number
   logging?: LoggingOption
   onStep?: (event: ParsedStreamEvent, context: { iteration: number }) => void
+  hooks?: Partial<Record<TaskHookPhase, TaskHook | TaskHook[]>>
 }
 
 export interface IterationResult {
@@ -70,11 +89,14 @@ export interface IterationResult {
 }
 
 export interface RunResult {
-  branch: string
-  worktreeDir: string
+  workspaceDir: string
   iterations: IterationResult[]
   stdout: string
+  status: TaskStatus
   completionSignal?: string
-  commits: { sha: string }[]
+  error?: unknown
+  metadata: TaskMetadata
   logFilePath?: string
 }
+
+export type RunTaskResult = RunResult

@@ -1,6 +1,7 @@
 import { mkdir, rm } from "node:fs/promises"
 import path from "node:path"
 import { exec } from "./exec.js"
+import type { TaskHook } from "./types.js"
 
 export async function createWorktree(input: {
   repoDir: string
@@ -71,14 +72,14 @@ async function findWorktreeForBranch(input: {
   return undefined
 }
 
-export async function commitAll(input: {
-  cwd: string
+async function gitCommitAll(input: {
+  workspaceDir: string
   message: string
 }): Promise<{ sha?: string }> {
-  await exec("git", ["add", "-A"], { cwd: input.cwd })
+  await exec("git", ["add", "-A"], { cwd: input.workspaceDir })
 
   const diff = await exec("git", ["diff", "--cached", "--quiet"], {
-    cwd: input.cwd,
+    cwd: input.workspaceDir,
   })
 
   if (diff.exitCode === 0) {
@@ -86,7 +87,7 @@ export async function commitAll(input: {
   }
 
   const commit = await exec("git", ["commit", "-m", input.message], {
-    cwd: input.cwd,
+    cwd: input.workspaceDir,
   })
 
   if (commit.exitCode !== 0) {
@@ -94,7 +95,7 @@ export async function commitAll(input: {
   }
 
   const sha = await exec("git", ["rev-parse", "HEAD"], {
-    cwd: input.cwd,
+    cwd: input.workspaceDir,
   })
 
   if (sha.exitCode !== 0) {
@@ -103,5 +104,83 @@ export async function commitAll(input: {
 
   return {
     sha: sha.stdout.trim(),
+  }
+}
+
+export function commitAll(input: { message: string }): TaskHook {
+  return async (context) => {
+    const commit = await gitCommitAll({
+      workspaceDir: context.workspaceDir,
+      message: input.message,
+    })
+
+    const commits = Array.isArray(context.metadata.commits) ? context.metadata.commits : []
+    if (commit.sha) {
+      commits.push({ sha: commit.sha })
+    }
+    context.metadata.commits = commits
+
+    return {
+      commits,
+      lastCommit: commit.sha,
+    }
+  }
+}
+
+export async function deleteWorktree(input: {
+  worktreeDir: string
+  force?: boolean
+}): Promise<void> {
+  const gitCommonDir = await exec(
+    "git",
+    ["rev-parse", "--path-format=absolute", "--git-common-dir"],
+    {
+      cwd: input.worktreeDir,
+    },
+  )
+
+  if (gitCommonDir.exitCode !== 0) {
+    if (input.force) {
+      await rm(input.worktreeDir, { recursive: true, force: true })
+      return
+    }
+
+    throw new Error(gitCommonDir.stderr)
+  }
+
+  const repoDir = path.dirname(gitCommonDir.stdout.trim())
+  const remove = await exec(
+    "git",
+    ["worktree", "remove", input.force ? "--force" : null, input.worktreeDir].filter(
+      Boolean,
+    ) as string[],
+    { cwd: repoDir },
+  )
+
+  if (remove.exitCode !== 0) {
+    if (input.force && remove.stderr.includes("is not a working tree")) {
+      await rm(input.worktreeDir, { recursive: true, force: true })
+      return
+    }
+
+    throw new Error(remove.stderr)
+  }
+}
+
+export function mergeBranchIntoHead(input: {
+  branch: string
+  strategy?: "ff-only" | "no-ff"
+}): TaskHook {
+  return async (context) => {
+    const strategy = input.strategy ?? "ff-only"
+    const args =
+      strategy === "ff-only"
+        ? ["merge", "--ff-only", input.branch]
+        : ["merge", "--no-ff", input.branch]
+
+    const result = await exec("git", args, { cwd: context.workspaceDir })
+    if (result.exitCode !== 0) {
+      throw new Error(result.stderr)
+    }
   }
 }

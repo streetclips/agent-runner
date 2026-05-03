@@ -1,12 +1,12 @@
 # Agent Runner
 
-A minimal TypeScript runner that executes coding agents inside a Docker sandbox, using a Git worktree as the isolated workspace.
+A minimal TypeScript runner that executes coding agents inside a Docker sandbox against any local workspace directory.
 
 ## Usage
 
 ```ts
 import { claudeCode } from "@alejandrocantero/agent-runner/agents"
-import { run } from "@alejandrocantero/agent-runner"
+import { commitAll, deleteWorktree, execInSandbox, runTask } from "@alejandrocantero/agent-runner"
 import { dockerSandboxWithClaudeCode } from "@alejandrocantero/agent-runner/sandboxes"
 import type { Agent, Sandbox } from "@alejandrocantero/agent-runner/types"
 
@@ -15,13 +15,24 @@ const agent: Agent = claudeCode("claude-sonnet-4-6", {
 })
 const sandbox: Sandbox = dockerSandboxWithClaudeCode()
 
-const result = await run({
+const result = await runTask({
   agent,
   sandbox,
   prompt: "Update the README and finish with <promise>COMPLETE</promise>",
-  branch: "agent/demo",
+  workspaceDir: "/path/to/workspace",
   maxIterations: 3,
-  // Default: writes agent stdout/stderr to .agent-runner/logs/<branch>-<agent>.log
+  hooks: {
+    "sandbox-create": async ({ workspaceDir }) => {
+      console.log(`Preparing ${workspaceDir}`)
+    },
+    "agent-start": execInSandbox("npm install"),
+    "agent-finish": commitAll({ message: "Agent changes" }),
+    "sandbox-close": async ({ status, workspaceDir }) => {
+      await deleteWorktree({ worktreeDir: workspaceDir, force: true })
+      console.log(`Task ended with ${status}`)
+    },
+  },
+  // Default: writes agent stdout/stderr to .agent-runner/logs/<agent>.log
   // and tees the in-container output to your terminal.
   // Use logging: { type: "file", tee: false } for quiet file-only logging.
   // Use logging: { type: "stdout" } for terminal-only logging.
@@ -31,6 +42,15 @@ console.log(result)
 ```
 
 `result.logFilePath` contains the path to the log file when file logging is used.
+
+Lifecycle hooks run in this order:
+
+1. `sandbox-create`: before Docker starts.
+2. `agent-start`: after Docker starts and before the first agent command.
+3. `agent-finish`: after completion, max iterations, or failure, before Docker exits.
+4. `sandbox-close`: after Docker closes.
+
+Git helpers such as `createWorktree`, `deleteWorktree`, `commitAll`, and `mergeBranchIntoHead` are optional utilities. `commitAll` and `mergeBranchIntoHead` are hook factories; `createWorktree` and `deleteWorktree` are direct async functions for preparing and removing worktrees.
 
 Run the included example:
 
