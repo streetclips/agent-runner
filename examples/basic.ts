@@ -1,8 +1,7 @@
 import { dirname, resolve } from "node:path"
 import { fileURLToPath } from "node:url"
 import { claudeCode } from "../src/agents/claude.js"
-import { commitAll, createWorktree, deleteWorktree } from "../src/git.js"
-import { execInSandbox, runTask } from "../src/run.js"
+import { commitAll, createWorktree, deleteWorktree, execInSandbox, runTask } from "../src/run.js"
 import { dockerSandboxWithClaudeCode } from "../src/sandboxes/docker.js"
 
 const repoDir = resolve(dirname(fileURLToPath(import.meta.url)), "..")

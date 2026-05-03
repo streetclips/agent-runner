@@ -8,6 +8,7 @@ import {
   DEFAULT_COMPLETION_PROMPT,
   DEFAULT_COMPLETION_SIGNAL,
   commitAll,
+  createWorktree,
   deleteWorktree,
   execInSandbox,
   runTask,
@@ -364,5 +365,22 @@ describe("public API", () => {
 
     expect(await pathExists(worktreeDir)).toBe(false)
     expect(gitOutput(repoDir, ["worktree", "list", "--porcelain"])).not.toContain(worktreeDir)
+  })
+
+  test("createWorktree creates a registered git worktree", async () => {
+    const repoDir = await mkdtemp(path.join(tmpdir(), "agent-runner-git-"))
+    git(repoDir, ["init"])
+    git(repoDir, ["config", "user.email", "agent-runner@example.com"])
+    git(repoDir, ["config", "user.name", "Agent Runner"])
+    await writeFile(path.join(repoDir, "README.md"), "hello\n")
+    git(repoDir, ["add", "-A"])
+    git(repoDir, ["commit", "-m", "initial"])
+
+    const worktreeDir = await createWorktree({ repoDir, branch: "agent/demo" })
+
+    expect(await pathExists(worktreeDir)).toBe(true)
+    expect(gitOutput(repoDir, ["worktree", "list", "--porcelain"])).toContain(worktreeDir)
+
+    await deleteWorktree({ worktreeDir, force: true })
   })
 })

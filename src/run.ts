@@ -13,7 +13,7 @@ import type {
   TaskMetadata,
   TaskStatus,
 } from "./types.js"
-export { commitAll, deleteWorktree, mergeBranchIntoHead } from "./git.js"
+export { commitAll, createWorktree, deleteWorktree, mergeBranchIntoHead } from "./git.js"
 
 export const DEFAULT_COMPLETION_SIGNAL = "<promise>COMPLETE</promise>"
 export const DEFAULT_COMPLETION_PROMPT =
