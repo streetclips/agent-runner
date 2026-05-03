@@ -13,10 +13,10 @@ RUN apt-get update && apt-get install -y \
 RUN usermod -d /home/agent -m -l agent node
 USER agent
 
-# Install Claude Code CLI
-RUN curl -fsSL https://claude.ai/install.sh | bash
+# Install OpenCode CLI
+RUN npm config set prefix /home/agent/.local \
+  && npm install -g opencode-ai
 
-# Add Claude to PATH
 ENV PATH="/home/agent/.local/bin:$PATH"
 
 WORKDIR /home/agent

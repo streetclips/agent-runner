@@ -18,6 +18,10 @@
       "types": "./dist/agents/claude.d.ts",
       "import": "./dist/agents/claude.js"
     },
+    "./agents/opencode": {
+      "types": "./dist/agents/opencode.d.ts",
+      "import": "./dist/agents/opencode.js"
+    },
     "./sandboxes": {
       "types": "./dist/sandboxes/docker.d.ts",
       "import": "./dist/sandboxes/docker.js"
@@ -28,7 +32,7 @@
     "dockerfiles"
   ],
   "scripts": {
-    "dev": "tsx examples/basic.ts",
+    "dev": "tsx examples/opencode.ts",
     "build": "tsc -p tsconfig.json",
     "format": "biome format . --write",
     "lint": "biome check .",

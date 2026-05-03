@@ -41,6 +41,27 @@ const result = await runTask({
 console.log(result)
 ```
 
+OpenCode can be used with the same runner and Docker sandbox shape:
+
+```ts
+import { openCode } from "@alejandrocantero/agent-runner/agents/opencode"
+import { runTask } from "@alejandrocantero/agent-runner"
+import { dockerSandboxWithOpenCode } from "@alejandrocantero/agent-runner/sandboxes"
+
+const result = await runTask({
+  agent: openCode("anthropic/claude-sonnet-4-5", {
+    agent: "build",
+  }),
+  sandbox: dockerSandboxWithOpenCode({
+    env: {
+      ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY ?? "",
+    },
+  }),
+  prompt: "Update the README",
+  workspaceDir: "/path/to/workspace",
+})
+```
+
 `result.logFilePath` contains the path to the log file when file logging is used.
 
 By default, `runTask` appends a completion instruction to the prompt and waits for

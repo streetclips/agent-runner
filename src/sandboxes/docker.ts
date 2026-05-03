@@ -8,6 +8,10 @@ const CLAUDE_CODE_DOCKERFILE = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   "../../dockerfiles/Dockerfile.claude-code",
 )
+const OPENCODE_DOCKERFILE = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../../dockerfiles/Dockerfile.opencode",
+)
 
 export function docker(options: {
   imageName: string
@@ -101,6 +105,21 @@ export function dockerSandboxWithClaudeCode(options?: {
   return docker({
     imageName: options?.imageName ?? "agent-runner-claude-code:local",
     dockerfile: CLAUDE_CODE_DOCKERFILE,
+    context: options?.context,
+    workdir: options?.workdir,
+    env: options?.env,
+  })
+}
+
+export function dockerSandboxWithOpenCode(options?: {
+  imageName?: string
+  context?: string
+  workdir?: string
+  env?: Record<string, string>
+}): Sandbox {
+  return docker({
+    imageName: options?.imageName ?? "agent-runner-opencode:local",
+    dockerfile: OPENCODE_DOCKERFILE,
     context: options?.context,
     workdir: options?.workdir,
     env: options?.env,

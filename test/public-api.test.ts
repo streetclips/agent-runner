@@ -5,6 +5,10 @@ import path from "node:path"
 import { describe, expect, test } from "vitest"
 import { claudeCode } from "../src/agents/claude.js"
 import {
+  openCode,
+  parseStreamJsonLine as parseOpenCodeStreamJsonLine,
+} from "../src/agents/opencode.js"
+import {
   DEFAULT_COMPLETION_PROMPT,
   DEFAULT_COMPLETION_SIGNAL,
   commitAll,
@@ -13,7 +17,11 @@ import {
   execInSandbox,
   runTask,
 } from "../src/run.js"
-import { docker, dockerSandboxWithClaudeCode } from "../src/sandboxes/docker.js"
+import {
+  docker,
+  dockerSandboxWithClaudeCode,
+  dockerSandboxWithOpenCode,
+} from "../src/sandboxes/docker.js"
 import type { Agent, ExecResult, RunTaskOptions, Sandbox, SandboxHandle } from "../src/types.js"
 
 function fakeAgent(command = "agent-command"): Agent {
@@ -100,10 +108,13 @@ describe("public API", () => {
 
   test("exports agent and sandbox factories", () => {
     const agent = claudeCode("claude-sonnet-4-6", { effort: "low" })
+    const opencodeAgent = openCode("anthropic/claude-sonnet-4-5")
     const sandbox = docker({ imageName: "agent-runner:test" })
 
     expect(agent.name).toBe("claude-code")
     expect(agent.buildCommand({ prompt: "finish" }).command).toContain("claude")
+    expect(opencodeAgent.name).toBe("opencode")
+    expect(opencodeAgent.buildCommand({ prompt: "finish" }).command).toContain("opencode")
     expect(sandbox.name).toBe("docker")
   })
 
@@ -111,6 +122,170 @@ describe("public API", () => {
     const sandbox = dockerSandboxWithClaudeCode()
 
     expect(sandbox.name).toBe("docker")
+  })
+
+  test("exports a default OpenCode docker sandbox", () => {
+    const sandbox = dockerSandboxWithOpenCode()
+
+    expect(sandbox.name).toBe("docker")
+  })
+
+  test("builds an OpenCode run command", () => {
+    const agent = openCode("anthropic/claude-sonnet-4-5")
+
+    expect(agent.buildCommand({ prompt: "finish 'now'" }).command).toBe(
+      "opencode run --model 'anthropic/claude-sonnet-4-5' --format json --dangerously-skip-permissions 'finish '\\''now'\\'''",
+    )
+  })
+
+  test("builds an OpenCode command with optional agent and config", () => {
+    const agent = openCode("anthropic/claude-sonnet-4-5", {
+      agent: "build",
+      title: "Agent task",
+      config: "/tmp/opencode.json",
+      configDir: "/tmp/opencode",
+      configContent: '{"model":"anthropic/claude-sonnet-4-5"}',
+      thinking: true,
+    })
+
+    expect(agent.buildCommand({ prompt: "finish" }).command).toBe(
+      "OPENCODE_CONFIG='/tmp/opencode.json' OPENCODE_CONFIG_DIR='/tmp/opencode' OPENCODE_CONFIG_CONTENT='{\"model\":\"anthropic/claude-sonnet-4-5\"}' opencode run --model 'anthropic/claude-sonnet-4-5' --agent 'build' --title 'Agent task' --thinking --format json --dangerously-skip-permissions 'finish'",
+    )
+  })
+
+  test("parses OpenCode text events", () => {
+    expect(
+      parseOpenCodeStreamJsonLine(
+        JSON.stringify({
+          type: "text",
+          part: {
+            text: "done",
+          },
+        }),
+      ),
+    ).toEqual([{ type: "text", text: "done" }])
+  })
+
+  test("parses OpenCode reasoning events as visible text", () => {
+    expect(
+      parseOpenCodeStreamJsonLine(
+        JSON.stringify({
+          type: "reasoning",
+          timestamp: 1767036064268,
+          sessionID: "ses_123",
+          part: {
+            id: "prt_123",
+            sessionID: "ses_123",
+            messageID: "msg_123",
+            type: "reasoning",
+            text: "I should inspect the README first.",
+          },
+        }),
+      ),
+    ).toEqual([{ type: "text", text: "I should inspect the README first." }])
+  })
+
+  test("parses OpenCode session IDs", () => {
+    expect(
+      parseOpenCodeStreamJsonLine(
+        JSON.stringify({
+          type: "step_start",
+          sessionID: "ses_123",
+        }),
+      ),
+    ).toEqual([{ type: "session_id", sessionId: "ses_123" }])
+  })
+
+  test("parses OpenCode bash tool calls", () => {
+    expect(
+      parseOpenCodeStreamJsonLine(
+        JSON.stringify({
+          type: "tool_use",
+          part: {
+            tool: "bash",
+            state: {
+              input: {
+                command: "npm test",
+              },
+            },
+          },
+        }),
+      ),
+    ).toEqual([{ type: "tool_call", name: "bash", args: "npm test" }])
+  })
+
+  test("parses OpenCode tool calls with JSON fallback args", () => {
+    expect(
+      parseOpenCodeStreamJsonLine(
+        JSON.stringify({
+          type: "tool_use",
+          part: {
+            tool: "custom",
+            state: {
+              input: {
+                nested: true,
+              },
+            },
+          },
+        }),
+      ),
+    ).toEqual([{ type: "tool_call", name: "custom", args: '{"nested":true}' }])
+  })
+
+  test("ignores malformed OpenCode JSON lines", () => {
+    expect(parseOpenCodeStreamJsonLine("{")).toEqual([])
+  })
+
+  test("parses final OpenCode step finish events", () => {
+    expect(
+      parseOpenCodeStreamJsonLine(
+        JSON.stringify({
+          type: "step_finish",
+          timestamp: 1767036064273,
+          sessionID: "ses_123",
+          part: {
+            id: "prt_123",
+            sessionID: "ses_123",
+            messageID: "msg_123",
+            type: "step-finish",
+            reason: "stop",
+            cost: 0.001,
+            tokens: {
+              input: 671,
+              output: 8,
+              reasoning: 2,
+              cache: {
+                read: 10,
+                write: 0,
+              },
+            },
+          },
+        }),
+      ),
+    ).toEqual([{ type: "result", result: "stop" }])
+  })
+
+  test("parses OpenCode error events", () => {
+    expect(
+      parseOpenCodeStreamJsonLine(
+        JSON.stringify({
+          type: "error",
+          timestamp: 1767036065000,
+          sessionID: "ses_123",
+          error: {
+            name: "APIError",
+            data: {
+              message: "Rate limit exceeded",
+            },
+          },
+        }),
+      ),
+    ).toEqual([
+      {
+        type: "result",
+        result: '{"name":"APIError","data":{"message":"Rate limit exceeded"}}',
+      },
+    ])
   })
 
   test("rejects relative dockerfile paths", async () => {
