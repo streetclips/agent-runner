@@ -9,6 +9,18 @@ const repoDir = resolve(dirname(fileURLToPath(import.meta.url)), "..")
 const worktreePath = await createWorktree({ repoDir, branch: "agent/demo" })
 const claudeToken = process.env.CLAUDE_CODE_OAUTH_TOKEN
 
+function formatError(error: unknown): string | undefined {
+  if (error === undefined) {
+    return undefined
+  }
+
+  if (error instanceof Error) {
+    return error.stack ?? error.message
+  }
+
+  return String(error)
+}
+
 if (!claudeToken) {
   throw new Error("CLAUDE_CODE_OAUTH_TOKEN is required")
 }
@@ -32,7 +44,7 @@ const result = await runTask({
   idleTimeoutSeconds: 60 * 10,
   hooks: {
     "agent-start": execInSandbox("npm install"),
-    "agent-finish": commitAll({ message: "Agent changes" }),
+    "agent-finish": commitAll({ message: "[agent/demo] agent changes" }),
   },
 })
 
@@ -41,7 +53,12 @@ console.log({
   status: result.status,
   iterations: result.iterations.length,
   completionSignal: result.completionSignal,
+  error: formatError(result.error),
   metadata: result.metadata,
 })
+
+if (result.status !== "completed") {
+  throw new Error(`Agent task failed; preserving worktree at ${worktreePath}`)
+}
 
 await deleteWorktree({ worktreeDir: worktreePath, force: true })
