@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
 import { exec } from "../exec.js"
+import { style } from "../logger.js"
 import type { Sandbox } from "../types.js"
 
 const CLAUDE_CODE_DOCKERFILE = path.resolve(
@@ -36,15 +37,12 @@ export function docker(options: {
       const build = await exec(
         "docker",
         ["build", "-t", options.imageName, "-f", dockerfile ?? CLAUDE_CODE_DOCKERFILE, context],
-        {
-          cwd: workspaceDir,
-          onStdout: process.stdout.write.bind(process.stdout),
-          onStderr: process.stderr.write.bind(process.stderr),
-        },
+        { cwd: workspaceDir },
       )
 
       if (build.exitCode !== 0) {
-        throw new Error(`Docker build failed:\n${build.stderr}`)
+        process.stderr.write(style.dimError(build.stderr))
+        throw new Error("Docker build failed")
       }
 
       const envArgs = Object.entries(options.env ?? {}).flatMap(([key, value]) => [

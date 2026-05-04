@@ -1,5 +1,6 @@
 import path from "node:path"
 import { FileLogger } from "./file-logger.js"
+import { info, log, step, style, success } from "./logger.js"
 import type {
   ExecResult,
   IterationResult,
@@ -26,10 +27,6 @@ function defaultLogPath(input: {
   return path.join(input.workspaceDir, ".agent-runner", "logs", `${input.agentName}.log`)
 }
 
-function ensureTrailingNewline(value: string): string {
-  return value.endsWith("\n") ? value : `${value}\n`
-}
-
 function buildPrompt(input: { prompt: string; completionPrompt?: string | false }): string {
   if (input.completionPrompt === false) {
     return input.prompt
@@ -38,19 +35,6 @@ function buildPrompt(input: { prompt: string; completionPrompt?: string | false 
   const completionPrompt = input.completionPrompt ?? DEFAULT_COMPLETION_PROMPT
 
   return `${input.prompt.trimEnd()}\n\n${completionPrompt}`
-}
-
-function renderStreamEvent(event: ParsedStreamEvent): string | undefined {
-  switch (event.type) {
-    case "text":
-      return ensureTrailingNewline(event.text)
-    case "tool_call":
-      return `[tool] ${event.name}: ${event.args}\n`
-    case "session_id":
-      return `[session] ${event.sessionId}\n`
-    case "result":
-      return undefined
-  }
 }
 
 function normalizeHooks(hookOrHooks: TaskHook | TaskHook[] | undefined): TaskHook[] {
@@ -178,7 +162,7 @@ export async function runTask(options: RunTaskOptions): Promise<RunTaskResult> {
       : undefined
 
   if (logger) {
-    console.log(`[run] logging agent output to ${logger.path}`)
+    info(`logging agent output to ${logger.path}`)
     logger.line(`Agent: ${options.agent.name}`)
     logger.line(`Sandbox: ${options.sandbox.name}`)
     logger.line(`Workspace: ${workspaceDir}`)
@@ -221,9 +205,8 @@ export async function runTask(options: RunTaskOptions): Promise<RunTaskResult> {
     }
 
     for (let i = 1; i <= maxIterations; i++) {
-      const iterationMessage = `[run] iteration ${i}/${maxIterations}`
-      console.log(iterationMessage)
-      logger?.line(iterationMessage)
+      step(`iteration ${i}/${maxIterations}`)
+      logger?.line(`[run] iteration ${i}/${maxIterations}`)
 
       const agentCommand = options.agent.buildCommand({
         prompt,
@@ -237,9 +220,16 @@ export async function runTask(options: RunTaskOptions): Promise<RunTaskResult> {
           options.onStep?.(event, { iteration: i })
 
           if (teeToConsole) {
-            const rendered = renderStreamEvent(event)
-            if (rendered) {
-              process.stdout.write(rendered)
+            switch (event.type) {
+              case "text":
+                log("agent", event.text.trimEnd(), style.dim, "○")
+                break
+              case "tool_call":
+                log("agent", `${style.tool("[tool]")} ${event.name}: ${event.args}`, undefined, "○")
+                break
+              case "session_id":
+                log("agent", event.sessionId, style.dim, "○")
+                break
             }
           }
         }
@@ -298,9 +288,8 @@ export async function runTask(options: RunTaskOptions): Promise<RunTaskResult> {
       if (completionSignal) {
         matchedCompletionSignal = completionSignal
         status = "completed"
-        const completionMessage = `[run] completion signal matched: ${completionSignal}`
-        console.log(completionMessage)
-        logger?.line(completionMessage)
+        success(`completion signal matched: ${completionSignal}`)
+        logger?.line(`[run] completion signal matched: ${completionSignal}`)
         break
       }
     }
